@@ -25,6 +25,13 @@ jobs:
       - name: Extract Config Signature
         run: cat src/conf/confparser.h | sed -n 's/^#define .\+_SIGNATURE\W\+\([0-9]*\)/\1/p' > config_signature.txt
 
+      - name: Archive conf
+        uses: actions/upload-artifact@v4
+        with:
+          name: refloat-config
+          path: |
+            conf
+
       - name: Rename Package File
         run: mv refloat.vescpkg refloat-${{env.VERSION}}.vescpkg
 
@@ -40,7 +47,7 @@ jobs:
           tag: ${{github.ref}}
           name: Refloat ${{env.VERSION}}
           draft: true
-          artifacts: "refloat-${{env.VERSION}}.vescpkg,config_signature.txt"
+          artifacts: "refloat-${{env.VERSION}}.vescpkg,refloat.zip"
           bodyFile: "changelog.md"
           prerelease: ${{contains(github.ref, '-beta')}}
           allowUpdates: true
