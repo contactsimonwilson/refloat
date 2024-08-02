@@ -22,6 +22,24 @@
 ; Set to 1 to monitor debug variables
 (define debug 1)
 
+; This is executed once on boot:
+(foc-play-tone 0 1046.5 0.9)
+(sleep 0.08)
+(foc-play-tone 0 1318 0.9)
+(sleep 0.08)
+(foc-play-tone 0 1568 1.0)
+(sleep 0.08)
+(foc-play-tone 0 2093 1.1)
+(sleep 0.08)
+(foc-play-tone 0 1046.5 0.9)
+(foc-play-tone 1 1318 0.9)
+(sleep 0.08)
+(foc-play-tone 2 1568 1.0)
+(sleep 0.08)
+(foc-play-tone 2 2093 1.1)
+(sleep 0.2)
+(foc-play-stop)
+
 (if (= debug 1)
     (loopwhile t
         (progn
