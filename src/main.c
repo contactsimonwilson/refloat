@@ -71,6 +71,10 @@ typedef struct {
     lib_thread main_thread;
     lib_thread led_thread;
 
+    lib_semaphore imu_semaphore;
+    volatile bool should_terminate;
+    uint32_t imu_updates_missed;
+
     RefloatConfig float_conf;
 
     // Firmware version, passed in from Lisp
@@ -140,6 +144,7 @@ typedef struct {
     float noseangling_interpolated, inputtilt_interpolated;
     float turntilt_target, turntilt_interpolated;
     float current_time;
+    systime_t last_ticks;
     float disengage_timer, nag_timer;
     float idle_voltage;
     float fault_angle_pitch_timer, fault_angle_roll_timer, fault_switch_timer,
@@ -1066,14 +1071,31 @@ static void imu_ref_callback(float *acc, float *gyro, float *mag, float dt) {
 
     data *d = (data *) ARG;
     balance_filter_update(&d->balance_filter, gyro, acc, dt);
+
+    if (d->imu_semaphore) {
+        VESC_IF->sem_signal(d->imu_semaphore);
+    }
 }
 
 static void refloat_thd(void *arg) {
     data *d = (data *) arg;
-
     configure(d);
 
-    while (!VESC_IF->should_terminate()) {
+    while (!d->should_terminate) {
+        if (d->imu_semaphore) {
+            if (!VESC_IF->sem_wait_to(d->imu_semaphore, SYSTEM_TICK_RATE_HZ / 10)) {
+                d->imu_updates_missed += 10000;
+                continue;
+            }
+
+            systime_t ticks = VESC_IF->system_time_ticks();
+            if (ticks - d->last_ticks < 3) {
+                d->imu_updates_missed++;
+                continue;
+            }
+            d->last_ticks = ticks;
+        }
+
         beeper_update(d);
 
         charging_timeout(&d->charging, &d->state);
@@ -1510,7 +1532,9 @@ static void refloat_thd(void *arg) {
             break;
         }
 
-        VESC_IF->sleep_us(d->loop_time_us);
+        if (!d->imu_semaphore) {
+            VESC_IF->sleep_us(d->loop_time_us);
+        }
     }
 }
 
@@ -1624,6 +1648,8 @@ static float app_get_debug(int index) {
         return d->motor.current;
     case (9):
         return d->motor.atr_filtered_current;
+    case (10):
+        return d->imu_updates_missed;
     default:
         return 0;
     }
@@ -2379,7 +2405,7 @@ static void send_realtime_data2(data *d) {
 
     buffer_append_float32_auto(buffer, d->footpad_sensor.adc1, &ind);
     buffer_append_float32_auto(buffer, d->footpad_sensor.adc2, &ind);
-    buffer_append_float32_auto(buffer, d->throttle_val, &ind);
+    buffer_append_uint32(buffer, d->imu_updates_missed, &ind);
 
     if (d->state.state == STATE_RUNNING) {
         // Setpoints
@@ -2678,6 +2704,15 @@ static void stop(void *arg) {
     VESC_IF->imu_set_read_callback(NULL);
     VESC_IF->set_app_data_handler(NULL);
     VESC_IF->conf_custom_clear_configs();
+
+    d->should_terminate = true;
+
+    if (d->imu_semaphore) {
+        // Most of the time this reset will happen while the thread is waiting on semaphore
+        // but there is a small race happening which is taken care of by the semaphore timeout.
+        VESC_IF->sem_reset(d->imu_semaphore);
+    }
+
     if (d->led_thread) {
         VESC_IF->request_terminate(d->led_thread);
     }
@@ -2686,6 +2721,10 @@ static void stop(void *arg) {
     }
     log_msg("Terminating.");
     leds_destroy(&d->leds);
+
+    if (d->imu_semaphore) {
+        VESC_IF->free(d->imu_semaphore);
+    }
     VESC_IF->free(d);
 }
 
@@ -2702,6 +2741,12 @@ INIT_FUN(lib_info *info) {
 
     info->stop_fun = stop;
     info->arg = d;
+    if (VESC_IF->sem_create) {
+        log_msg("IMU Semaphore mode active.");
+        d->imu_semaphore = VESC_IF->sem_create();
+    } else {
+        log_msg("Loop Hertz mode active.");
+    }
 
     VESC_IF->conf_custom_add_config(get_cfg, set_cfg, get_cfg_xml);
 
@@ -2711,7 +2756,6 @@ INIT_FUN(lib_info *info) {
     }
 
     balance_filter_init(&d->balance_filter);
-    VESC_IF->imu_set_read_callback(imu_ref_callback);
 
     footpad_sensor_update(&d->footpad_sensor, &d->float_conf);
 
@@ -2732,6 +2776,8 @@ INIT_FUN(lib_info *info) {
             leds_destroy(&d->leds);
         }
     }
+
+    VESC_IF->imu_set_read_callback(imu_ref_callback);
 
     VESC_IF->set_app_data_handler(on_command_received);
     VESC_IF->lbm_add_extension("ext-dbg", ext_dbg);

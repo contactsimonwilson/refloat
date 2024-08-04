@@ -23,5 +23,6 @@
             (define erpm (ext-dbg 7))
             (define current (ext-dbg 8))
             (define atr_filtered_current (ext-dbg 9))
+            (define imu_updates_missed (ext-dbg 10))
             (sleep 0.1)
 )))

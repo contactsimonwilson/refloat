@@ -467,7 +467,8 @@ Item {
 
                 state.adc1Voltage = dv.getFloat32(ind); ind += 4;
                 state.adc2Voltage = dv.getFloat32(ind); ind += 4;
-                debugRemoteInput.value = Math.round(dv.getFloat32(ind) * 100); ind += 4;
+                //debugRemoteInput.value = Math.round(dv.getFloat32(ind) * 100); ind += 4;
+                debugRemoteInput.value = dv.getUint32(ind); ind += 4;
 
                 if (hasRuntime) {
                     pitch.setpointValue = dv.getFloat32(ind); ind += 4;
