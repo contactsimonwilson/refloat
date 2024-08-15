@@ -389,7 +389,7 @@ static void configure(data *d) {
     if (d->state.state == STATE_DISABLED) {
         beep_alert(d, 3, false);
     } else {
-        beep_alert(d, 1, false);
+        //beep_alert(d, 1, false);
     }
 }
 
@@ -1245,7 +1245,7 @@ static void refloat_thd(void *arg) {
                     d->beep_reason = BEEP_LOWBATT;
                 } else {
                     // Let the rider know that the board is ready (one long beep)
-                    beep_alert(d, 1, true);
+                    //beep_alert(d, 1, true);
                 }
             }
             break;
