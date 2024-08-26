@@ -109,14 +109,6 @@ inline static float taylor_series(float zero_to_tau) {
     return fminf(r, 1.0f);
 }
 
-static uint32_t color_wheel(uint8_t pos) {
-    float norm = (float) pos / 255.0;
-    float r = taylor_series((norm + 0.0 / 3.0) * TAU);
-    float b = taylor_series((norm + 1.0 / 3.0) * TAU);
-    float g = taylor_series((norm + 2.0 / 3.0) * TAU);
-    return ((uint8_t) (r * 255) << 16) | ((uint8_t) (g * 255) << 8) | (uint8_t) (b * 255);
-}
-
 static void sattolo_shuffle(uint32_t seed, uint8_t *array, uint8_t length) {
     for (int16_t i = length - 1; i > 0; --i) {
         uint8_t j = rnd(seed + i) % i;
@@ -204,6 +196,38 @@ static float cosine_progress(float time) {
         cos = 1 - cos;
     }
     return cos;
+}
+
+float tweak(float x, float a) {
+    if (x < 1.0f) {
+        return 1.0f - powf(1.0f - x, a);
+    } else if (x < 2.0f) {
+        return 1.0f + powf(x - 1.0f, a);
+    }
+    return 0.0f;
+}
+
+static uint32_t color_wheel(uint8_t pos) {
+    float norm = (float) pos / 255.0f * 3.0f;
+    float r_norm = fmodf(norm + 1.0f, 3.0f);
+    float g_norm = norm;
+    float b_norm = fmodf(norm + 2.0f, 3.0f);
+    float r = 0;
+    float b = 0;
+    float g = 0;
+
+    if (r_norm <= 2.0f) {
+        r = cosine_progress(tweak(r_norm, 3.6f));
+    }
+
+    if (g_norm <= 2.0f) {
+        g = cosine_progress(tweak(g_norm, 2.6f));
+    }
+
+    if (b_norm <= 2.0f) {
+        b = cosine_progress(tweak(b_norm, 2.0f));
+    }
+    return ((uint8_t) (r * 255) << 16) | ((uint8_t) (g * 255) << 8) | (uint8_t) (b * 255);
 }
 
 static void anim_fade(Leds *leds, const LedStrip *strip, const LedBar *bar, float time) {
@@ -329,13 +353,20 @@ static void anim_rainbow_cycle(Leds *leds, const LedStrip *strip, float time) {
 }
 
 static void anim_rgb_fade(Leds *leds, const LedStrip *strip, float time) {
-    strip_set_color(
-        leds,
-        strip,
-        color_wheel((uint8_t) floorf(fmodf(time, 4.0f) * 255.0f)),
-        strip->brightness,
-        1.0f
-    );
+    // set to e.g. 6 to see 1/6 of the wheel
+    const int portion = 1;
+    // if portion is > 1, use offset to pick the different sections of the wheel
+    const int offset = 0;
+    for (int i = 0; i < strip->length; ++i) {
+        led_set_color(
+            leds,
+            strip,
+            i,
+            color_wheel(255.0f / portion * offset + 255.0f / portion * ((float) i / strip->length)),
+            strip->brightness,
+            1.0f
+        );
+    }
 }
 
 static void led_strip_animate(Leds *leds, const LedStrip *strip, const LedBar *bar, float time) {
