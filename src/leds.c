@@ -230,6 +230,29 @@ static uint32_t color_wheel(uint8_t pos) {
     return ((uint8_t) (r * 255) << 16) | ((uint8_t) (g * 255) << 8) | (uint8_t) (b * 255);
 }
 
+static uint32_t color_wheel_oklch(uint8_t pos) {
+    float lightness = 0.75f;
+    float chroma = 0.1275f;
+    float hue_rad = TAU * pos / 256.0f;
+
+    float a_ = chroma * cosf(hue_rad);
+    float b_ = chroma * sinf(hue_rad);
+
+    float l_ = lightness + 0.3963377774f * a_ + 0.2158037573f * b_;
+    float m_ = lightness - 0.1055613458f * a_ - 0.0638541728f * b_;
+    float s_ = lightness - 0.0894841775f * a_ - 1.2914855480f * b_;
+
+    float l = l_ * l_ * l_;
+    float m = m_ * m_ * m_;
+    float s = s_ * s_ * s_;
+
+    float r = +4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s;
+    float g = -1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s;
+    float b = -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s;
+
+    return ((uint8_t) (r * 255) << 16) | ((uint8_t) (g * 255) << 8) | (uint8_t) (b * 255);
+}
+
 static void anim_fade(Leds *leds, const LedStrip *strip, const LedBar *bar, float time) {
     float p = cosine_progress(time);
     uint32_t color = color_blend(colors[bar->color2], colors[bar->color1], p);
@@ -358,14 +381,33 @@ static void anim_rgb_fade(Leds *leds, const LedStrip *strip, float time) {
     // if portion is > 1, use offset to pick the different sections of the wheel
     const int offset = 0;
     for (int i = 0; i < strip->length; ++i) {
-        led_set_color(
-            leds,
-            strip,
-            i,
-            color_wheel(255.0f / portion * offset + 255.0f / portion * ((float) i / strip->length)),
-            strip->brightness,
-            1.0f
-        );
+        if (leds->left_sensor > 0.0f) {
+            for (int i = 0; i < strip->length; ++i) {
+                led_set_color(
+                    leds,
+                    strip,
+                    i,
+                    color_wheel_oklch(
+                        255.0f / portion * offset + 255.0f / portion * ((float) i / strip->length)
+                    ),
+                    strip->brightness,
+                    1.0f
+                );
+            }
+        } else {
+            for (int i = 0; i < strip->length; ++i) {
+                led_set_color(
+                    leds,
+                    strip,
+                    i,
+                    color_wheel(
+                        255.0f / portion * offset + 255.0f / portion * ((float) i / strip->length)
+                    ),
+                    strip->brightness,
+                    1.0f
+                );
+            }
+        }
     }
 }
 
