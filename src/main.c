@@ -134,6 +134,29 @@ typedef struct {
 
     FootpadSensor footpad_sensor;
 
+    bool test_pressed;
+    bool test_noise;
+    float test_target;
+
+    float test_value;
+    float test_ramped_step;
+
+    float test_ema_sfirst_value;
+    float test_ema_sfirst_v1;
+
+    float test_ema_slast_value;
+
+    float test_ema_2nd_v1;
+    float test_ema_2nd_value;
+
+    float test_ema_3rd_v1;
+    float test_ema_3rd_v2;
+    float test_ema_3rd_value;
+
+    float test_step_filter_value;
+    float test_step_filter_ramped_step;
+    float test_step_filter_smooth_target;
+
     // Feature: Turntilt
     float last_yaw_angle, yaw_angle, abs_yaw_change, last_yaw_change, yaw_change, yaw_aggregate;
     float turntilt_boost_per_erpm, yaw_aggregate_target;
@@ -1227,6 +1250,147 @@ static void refloat_thd(void *arg) {
         }
 
         footpad_sensor_update(&d->footpad_sensor, &d->float_conf);
+
+        if (d->footpad_sensor.state != FS_NONE) {
+            if (d->footpad_sensor.state == FS_LEFT) {
+                d->test_noise = true;
+            } else {
+                d->test_noise = false;
+            }
+            d->test_pressed = true;
+            d->disengage_timer = d->current_time;
+
+            d->test_target = 0;
+
+            d->test_value = 0;
+            d->test_ramped_step = 0;
+
+            d->test_ema_sfirst_value = 0;
+            d->test_ema_sfirst_v1 = 0;
+
+            d->test_ema_slast_value = 0;
+
+            d->test_ema_2nd_v1 = 0;
+            d->test_ema_2nd_value = 0;
+
+            d->test_ema_3rd_v1 = 0;
+            d->test_ema_3rd_v2 = 0;
+            d->test_ema_3rd_value = 0;
+
+            d->test_step_filter_value = 0;
+            d->test_step_filter_ramped_step = 0;
+            d->test_step_filter_smooth_target = 0;
+
+            VESC_IF->plot_init("t", "value");
+            VESC_IF->plot_add_graph("target");
+            VESC_IF->plot_add_graph("orig smooth");
+            VESC_IF->plot_add_graph("rate limit then EMA");
+            VESC_IF->plot_add_graph("EMA rate ltd.");
+            // VESC_IF->plot_add_graph("2nd order EMA rate ltd.");
+            VESC_IF->plot_add_graph("3rd order EMA rate ltd.");
+            VESC_IF->plot_add_graph("EMA rate ltd. then EMA on step");
+        }
+
+        //        if (d->footpad_sensor.state == FS_LEFT) {
+        //            d->test_target += 0.1f;
+        //        } else if (d->footpad_sensor.state == FS_RIGHT) {
+        //            d->test_target -= 0.1f;
+        //        }
+
+        if (d->test_pressed) {
+            float time = d->current_time - d->disengage_timer;
+            if (time < 0.2f) {
+                d->test_target = 5.0f;
+            } else if (time > 0.4f && time < 0.5f) {
+                d->test_target = 0.0f;
+            } else if (time > 0.8f && time < 1.0f) {
+                d->test_target += 0.02f;
+            } else if (time > 1.2f && time < 1.4f) {
+                d->test_target -= 0.01f;
+            } else if (time > 1.4f && time < 1.5f) {
+                d->test_target += 0.08f;
+            } else if (time > 1.5f && time < 1.6f) {
+                d->test_target -= 0.08f;
+            } else if (time > 1.6f && time < 1.7f) {
+                d->test_target += 0.08f;
+            } else if (time > 1.7f && time < 1.8f) {
+                d->test_target -= 0.08f;
+            } else if (time > 1.8f) {
+                d->test_pressed = false;
+            }
+
+            float target = d->test_target;
+            float noise = 0;
+            if (d->test_noise) {
+                noise = (float) rnd(time * 1e6) / (UINT32_MAX / 2) - 1.0f;
+                noise = -logf(1.01 - fabsf(noise)) * 0.2f * sign(noise);
+                target += noise;
+            }
+
+            uint8_t gi = 0;
+
+            VESC_IF->plot_set_graph(gi++);
+            VESC_IF->plot_send_points(time * 1000, target);
+            // VESC_IF->plot_send_points(time * 1000, d->test_target);
+
+            smooth_rampf(&d->test_value, &d->test_ramped_step, target, 0.07, 0.05, 1.5f);
+            VESC_IF->plot_set_graph(gi++);
+            VESC_IF->plot_send_points(time * 1000, d->test_value);
+
+            float alpha = 0.025f;
+            float higher_order_mult = 0.8f;
+
+            rampf_simple_step_first(
+                &d->test_ema_sfirst_value, &d->test_ema_sfirst_v1, target, 0.07, alpha * 2
+            );
+            VESC_IF->plot_set_graph(gi++);
+            VESC_IF->plot_send_points(time * 1000, d->test_ema_sfirst_value);
+
+            rampf_simple_step_last(&d->test_ema_slast_value, target, 0.07, alpha);
+            VESC_IF->plot_set_graph(gi++);
+            VESC_IF->plot_send_points(time * 1000, d->test_ema_slast_value);
+
+            // rampf_ema_2nd(
+            //     &d->test_ema_2nd_value,
+            //     &d->test_ema_2nd_v1,
+            //     target,
+            //     0.07,
+            //     alpha * 2 * higher_order_mult
+            //);
+            // VESC_IF->plot_set_graph(gi++);
+            // VESC_IF->plot_send_points(time * 1000, d->test_ema_2nd_value);
+
+            rampf_ema_3rd(
+                &d->test_ema_3rd_value,
+                &d->test_ema_3rd_v1,
+                &d->test_ema_3rd_v2,
+                target,
+                0.07,
+                alpha * 3 * higher_order_mult
+            );
+            VESC_IF->plot_set_graph(gi++);
+            VESC_IF->plot_send_points(time * 1000, d->test_ema_3rd_value);
+
+            // rampf_step_filter(
+            //     &d->test_step_filter_value,
+            //     &d->test_step_filter_ramped_step,
+            //     target,
+            //     0.07,
+            //     alpha * 1.8
+            //);
+            rampf_step_filter2(
+                &d->test_step_filter_value,
+                &d->test_step_filter_smooth_target,
+                &d->test_step_filter_ramped_step,
+                target,
+                0.07,
+                alpha * 2.2f
+            );
+            // VESC_IF->plot_set_graph(gi++);
+            // VESC_IF->plot_send_points(time * 1000, d->test_step_filter_smooth_target);
+            VESC_IF->plot_set_graph(gi++);
+            VESC_IF->plot_send_points(time * 1000, d->test_step_filter_value);
+        }
 
         if (d->footpad_sensor.state == FS_NONE && d->state.state == STATE_RUNNING &&
             d->state.mode != MODE_FLYWHEEL && d->motor.abs_erpm > d->switch_warn_beep_erpm) {

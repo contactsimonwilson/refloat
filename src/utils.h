@@ -127,3 +127,25 @@ void smooth_rampf(
     float smoothing_factor,
     float smooth_center_window
 );
+
+void rampf_simple_step_first(
+    float *value, float *v1, float target, float step, float smoothing_factor
+);
+void rampf_simple_step_last(float *value, float target, float step, float smoothing_factor);
+
+void rampf_ema_2nd(float *value, float *v1, float target, float step, float smoothing_factor);
+void rampf_ema_3rd(
+    float *value, float *v1, float *v2, float target, float step, float smoothing_factor
+);
+
+void rampf_step_filter(
+    float *value, float *ramped_step, float target, float step, float smoothing_factor
+);
+void rampf_step_filter2(
+    float *value,
+    float *smooth_target,
+    float *ramped_step,
+    float target,
+    float step,
+    float smoothing_factor
+);

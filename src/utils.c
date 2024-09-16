@@ -67,6 +67,111 @@ void smooth_rampf(
     }
 }
 
+void rampf_simple_step_first(
+    float *value, float *v1, float target, float step, float smoothing_factor
+) {
+    float delta = target - *v1;
+
+    if (fabsf(delta) > step) {
+        delta = step * sign(delta);
+    }
+
+    *v1 += delta;
+
+    *value += smoothing_factor * (*v1 - *value);
+}
+
+void rampf_simple_step_last(float *value, float target, float step, float smoothing_factor) {
+    float delta = smoothing_factor * (target - *value);
+
+    if (fabsf(delta) > step) {
+        delta = step * sign(delta);
+    }
+
+    *value += delta;
+}
+
+void rampf_ema_2nd(float *value, float *v1, float target, float step, float smoothing_factor) {
+    *v1 += smoothing_factor * (target - *v1);
+
+    float delta = smoothing_factor * (*v1 - *value);
+
+    if (fabsf(delta) > step) {
+        delta = step * sign(delta);
+    }
+
+    *value += delta;
+}
+
+void rampf_ema_3rd(
+    float *value, float *v1, float *v2, float target, float step, float smoothing_factor
+) {
+    *v1 += smoothing_factor * (target - *v1);
+    *v2 += smoothing_factor * (*v1 - *v2);
+
+    float delta = smoothing_factor * (*v2 - *value);
+
+    if (fabsf(delta) > step) {
+        delta = step * sign(delta);
+    }
+
+    *value += delta;
+}
+
+// Does EMA on the target, but applies a secondary EMA on the step of the first
+// one (since EMA can be understood as adding the difference between target and
+// value multiplied by alpha, and that's the ramped_step below). Only applies
+// the secondary EMA when the step is increasing, not when it's decreasing. Has
+// issues dealing with noisy signal, hence version 2 below.
+//
+// The secondary EMA is meant to ease the transition into a sharp target
+// change. It can have a separate alpha which will determine the smoothness of
+// this transition.
+void rampf_step_filter(
+    float *value, float *ramped_step, float target, float step, float smoothing_factor
+) {
+    float delta = smoothing_factor * (target - *value);
+
+    if (fabsf(delta) > step) {
+        delta = step * sign(delta);
+    }
+
+    if (fabsf(delta) > fabsf(*ramped_step)) {
+        *ramped_step += smoothing_factor * (delta - *ramped_step);
+    } else {
+        *ramped_step = delta;
+    }
+
+    *value += *ramped_step;
+}
+
+// A version of the above, which also filters the target value before applying
+// the same filter. This (third) EMA could have another alpha of its own.
+void rampf_step_filter2(
+    float *value,
+    float *smooth_target,
+    float *ramped_step,
+    float target,
+    float step,
+    float smoothing_factor
+) {
+    *smooth_target += smoothing_factor * (target - *smooth_target);
+
+    float delta = smoothing_factor * 0.7f * (*smooth_target - *value);
+
+    if (fabsf(delta) > step) {
+        delta = step * sign(delta);
+    }
+
+    if (fabsf(delta) > fabsf(*ramped_step)) {
+        *ramped_step += smoothing_factor * (delta - *ramped_step);
+    } else {
+        *ramped_step = delta;
+    }
+
+    *value += *ramped_step;
+}
+
 float clampf(float value, float min, float max) {
     const float m = value < min ? min : value;
     return m > max ? max : m;
