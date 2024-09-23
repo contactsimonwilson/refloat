@@ -842,16 +842,6 @@ static void calculate_setpoint_target(data *d) {
     }
 }
 
-static void calculate_setpoint_interpolated(data *d) {
-    if (d->setpoint_target_interpolated != d->setpoint_target) {
-        rate_limitf(
-            &d->setpoint_target_interpolated,
-            d->setpoint_target,
-            get_setpoint_adjustment_step_size(d)
-        );
-    }
-}
-
 static void add_surge(data *d) {
     if (d->surge_enable) {
         float surge_now = 0;
@@ -1247,7 +1237,12 @@ static void refloat_thd(void *arg) {
 
             // Calculate setpoint and interpolation
             calculate_setpoint_target(d);
-            calculate_setpoint_interpolated(d);
+            rate_limitf(
+                &d->setpoint_target_interpolated,
+                d->setpoint_target,
+                get_setpoint_adjustment_step_size(d)
+            );
+
             d->setpoint = d->setpoint_target_interpolated;
             add_surge(d);
             apply_inputtilt(d);  // Allow Input Tilt for Darkride
