@@ -877,8 +877,6 @@ static void apply_noseangling(data *d) {
     }
 
     rate_limitf(&d->noseangling_interpolated, noseangling_target, d->noseangling_step_size);
-
-    d->setpoint += d->noseangling_interpolated;
 }
 
 static void apply_inputtilt(data *d) {
@@ -921,8 +919,6 @@ static void apply_inputtilt(data *d) {
             ((1 - smoothing_factor) * d->inputtilt_ramped_step_size);
         d->inputtilt_interpolated += d->inputtilt_ramped_step_size;
     }
-
-    d->setpoint += d->inputtilt_interpolated;
 }
 
 static void apply_turntilt(data *d) {
@@ -1004,7 +1000,6 @@ static void apply_turntilt(data *d) {
 
     // Move towards target limited by max speed
     rate_limitf(&d->turntilt_interpolated, d->turntilt_target, d->turntilt_step_size);
-    d->setpoint += d->turntilt_interpolated;
 }
 
 static void brake(data *d) {
@@ -1229,9 +1224,11 @@ static void refloat_thd(void *arg) {
                 d->setpoint_target,
                 get_setpoint_adjustment_step_size(d)
             );
-
             d->setpoint = d->setpoint_target_interpolated;
+
             apply_inputtilt(d);  // Allow Input Tilt for Darkride
+            d->setpoint += d->inputtilt_interpolated;
+
             if (!d->state.darkride) {
                 // in case of wheelslip, don't change torque tilts, instead slightly decrease each
                 // cycle
@@ -1240,7 +1237,11 @@ static void refloat_thd(void *arg) {
                     atr_and_braketilt_winddown(&d->atr);
                 } else {
                     apply_noseangling(d);
+                    d->setpoint += d->noseangling_interpolated;
+
                     apply_turntilt(d);
+                    d->setpoint += d->turntilt_interpolated;
+
                     torque_tilt_update(&d->torque_tilt, &d->motor, &d->float_conf);
                     atr_and_braketilt_update(&d->atr, &d->motor, &d->float_conf, d->proportional);
                 }
