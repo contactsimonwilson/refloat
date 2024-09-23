@@ -172,6 +172,12 @@ typedef struct {
 } CfgHapticFeedback;
 
 typedef struct {
+    float smooth_alpha;
+    float alpha;
+    float in_alpha;
+} CfgSmoothTarget;
+
+typedef struct {
     bool disabled;
     float kp;
     float ki;
@@ -180,6 +186,7 @@ typedef struct {
     float mahony_kp_roll;
     float kp_brake;
     float kp2_brake;
+    CfgSmoothTarget setpoint_filter;
     uint16_t hertz;
     float fault_pitch;
     float fault_roll;
