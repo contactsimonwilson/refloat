@@ -162,6 +162,12 @@ typedef struct {
 } CfgHapticFeedback;
 
 typedef struct {
+    float smooth_alpha;
+    float in_alpha;
+    float out_alpha;
+} CfgSmoothTarget;
+
+typedef struct {
     float version;
     bool disabled;
     float kp;
@@ -172,6 +178,7 @@ typedef struct {
     float bf_accel_confidence_decay;
     float kp_brake;
     float kp2_brake;
+    CfgSmoothTarget setpoint_filter;
     uint16_t kp_brake_erpm;
     uint16_t hertz;
     float fault_pitch;
