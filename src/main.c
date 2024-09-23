@@ -23,11 +23,13 @@
 
 #include "atr.h"
 #include "charging.h"
+#include "ema_filter.h"
 #include "footpad_sensor.h"
 #include "haptic_feedback.h"
 #include "lcm.h"
 #include "leds.h"
 #include "motor_data.h"
+#include "smooth_target.h"
 #include "state.h"
 #include "torque_tilt.h"
 #include "utils.h"
@@ -144,11 +146,15 @@ typedef struct {
     float rate_p;
     float pid_value;
 
-    float setpoint, setpoint_target, setpoint_target_interpolated;
+    SmoothTarget setpoint;
+    EMAFilter setpoint_ema;
+    float setpoint_value;
+    float setpoint_real_target, setpoint_target, setpoint_target_interpolated;
     float applied_booster_current;
     float noseangling_interpolated, inputtilt_interpolated;
     float turntilt_target, turntilt_interpolated;
     float current_time;
+    float dt;
     float disengage_timer, nag_timer;
     float idle_voltage;
     float fault_angle_pitch_timer, fault_angle_roll_timer, fault_switch_timer,
@@ -267,6 +273,8 @@ static void reconfigure(data *d) {
     motor_data_configure(
         &d->motor, d->float_conf.atr_filter / d->float_conf.hertz, d->float_conf.duty_filter_alpha
     );
+    smooth_target_configure(&d->setpoint, &d->float_conf.setpoint_filter, d->float_conf.hertz);
+    ema_filter_configure(&d->setpoint_ema, &d->float_conf.setpoint_filter);
     balance_filter_configure(&d->balance_filter, &d->float_conf);
     torque_tilt_configure(&d->torque_tilt, &d->float_conf);
     atr_configure(&d->atr, &d->float_conf);
@@ -280,6 +288,8 @@ static void configure(data *d) {
 
     // This timer is used to determine how long the board has been disengaged / idle
     d->disengage_timer = d->current_time;
+
+    d->dt = 1.0f / d->float_conf.hertz;
 
     // Loop time in microseconds
     d->loop_time_us = 1e6 / d->float_conf.hertz;
@@ -388,8 +398,11 @@ static void reset_vars(data *d) {
     torque_tilt_reset(&d->torque_tilt);
 
     // Set values for startup
-    d->setpoint = d->balance_pitch;
     d->setpoint_target_interpolated = d->balance_pitch;
+    d->setpoint_real_target = d->setpoint_target_interpolated;
+    smooth_target_reset(&d->setpoint, d->setpoint_real_target);
+    ema_filter_reset(&d->setpoint_ema, d->setpoint_real_target, 0.0f);
+
     d->setpoint_target = 0;
     d->applied_booster_current = 0;
     d->noseangling_interpolated = 0;
@@ -1201,10 +1214,10 @@ static void refloat_thd(void *arg) {
                 d->setpoint_target,
                 get_setpoint_adjustment_step_size(d)
             );
-            d->setpoint = d->setpoint_target_interpolated;
+            d->setpoint_real_target = d->setpoint_target_interpolated;
 
             apply_inputtilt(d);  // Allow Input Tilt for Darkride
-            d->setpoint += d->inputtilt_interpolated;
+            d->setpoint_real_target += d->inputtilt_interpolated;
 
             if (!d->state.darkride) {
                 // in case of wheelslip, don't change torque tilts, instead slightly decrease each
@@ -1214,10 +1227,10 @@ static void refloat_thd(void *arg) {
                     atr_and_braketilt_winddown(&d->atr);
                 } else {
                     apply_noseangling(d);
-                    d->setpoint += d->noseangling_interpolated;
+                    d->setpoint_real_target += d->noseangling_interpolated;
 
                     apply_turntilt(d);
-                    d->setpoint += d->turntilt_interpolated;
+                    d->setpoint_real_target += d->turntilt_interpolated;
 
                     torque_tilt_update(&d->torque_tilt, &d->motor, &d->float_conf);
                     atr_and_braketilt_update(&d->atr, &d->motor, &d->float_conf, d->proportional);
@@ -1228,11 +1241,21 @@ static void refloat_thd(void *arg) {
                 // one if signs do not match, they are simply added together
                 float ab_offset = d->atr.offset + d->atr.braketilt_offset;
                 if (sign(ab_offset) == sign(d->torque_tilt.offset)) {
-                    d->setpoint +=
+                    d->setpoint_real_target +=
                         sign(ab_offset) * fmaxf(fabsf(ab_offset), fabsf(d->torque_tilt.offset));
                 } else {
-                    d->setpoint += ab_offset + d->torque_tilt.offset;
+                    d->setpoint_real_target += ab_offset + d->torque_tilt.offset;
                 }
+            }
+
+            smooth_target_update(&d->setpoint, d->setpoint_real_target);
+            ema_filter_update(&d->setpoint_ema, d->setpoint_real_target, d->dt);
+            if (d->setpoint.cfg.type == SFT_NONE) {
+                d->setpoint_value = d->setpoint_real_target;
+            } else if (d->setpoint.cfg.type == SFT_EMA3) {
+                d->setpoint_value = d->setpoint_ema.value;
+            } else {
+                d->setpoint_value = d->setpoint.value;
             }
 
             // Prepare Brake Scaling (ramp scale values as needed for smooth transitions)
@@ -1261,7 +1284,7 @@ static void refloat_thd(void *arg) {
             }
 
             // Do PID maths
-            d->proportional = d->setpoint - d->balance_pitch;
+            d->proportional = d->setpoint_value - d->balance_pitch;
             bool tail_down = sign(d->proportional) != d->motor.erpm_sign;
 
             // Resume real PID maths
@@ -1306,7 +1329,7 @@ static void refloat_thd(void *arg) {
 
                 // Apply Booster (Now based on True Pitch)
                 // Braketilt excluded to allow for soft brakes that strengthen when near tail-drag
-                float true_proportional = d->setpoint - d->atr.braketilt_offset - d->pitch;
+                float true_proportional = d->setpoint_value - d->atr.braketilt_offset - d->pitch;
                 float abs_proportional = fabsf(true_proportional);
 
                 float booster_current, booster_angle, booster_ramp;
@@ -1604,7 +1627,7 @@ static float app_get_debug(int index) {
     case (4):
         return d->rate_p;
     case (5):
-        return d->setpoint;
+        return d->setpoint_value;
     case (6):
         return d->atr.offset;
     case (7):
@@ -1667,7 +1690,7 @@ static void send_realtime_data(data *d) {
     buffer_append_float32_auto(buffer, d->footpad_sensor.adc2, &ind);
 
     // Setpoints
-    buffer_append_float32_auto(buffer, d->setpoint, &ind);
+    buffer_append_float32_auto(buffer, d->setpoint_value, &ind);
     buffer_append_float32_auto(buffer, d->atr.offset, &ind);
     buffer_append_float32_auto(buffer, d->atr.braketilt_offset, &ind);
     buffer_append_float32_auto(buffer, d->torque_tilt.offset, &ind);
@@ -1725,7 +1748,7 @@ static void cmd_send_all_data(data *d, unsigned char mode) {
         buffer[ind++] = d->footpad_sensor.adc2 * 50;
 
         // Setpoints (can be positive or negative)
-        buffer[ind++] = d->setpoint * 5 + 128;
+        buffer[ind++] = d->setpoint_value * 5 + 128;
         buffer[ind++] = d->atr.offset * 5 + 128;
         buffer[ind++] = d->atr.braketilt_offset * 5 + 128;
         buffer[ind++] = d->torque_tilt.offset * 5 + 128;
@@ -2343,7 +2366,7 @@ static void send_realtime_data2(data *d) {
 
     if (d->state.state == STATE_RUNNING) {
         // Setpoints
-        buffer_append_float32_auto(buffer, d->setpoint, &ind);
+        buffer_append_float32_auto(buffer, d->setpoint_value, &ind);
         buffer_append_float32_auto(buffer, d->atr.offset, &ind);
         buffer_append_float32_auto(buffer, d->atr.braketilt_offset, &ind);
         buffer_append_float32_auto(buffer, d->torque_tilt.offset, &ind);
