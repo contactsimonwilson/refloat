@@ -1386,15 +1386,15 @@ p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Roboto'; ; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Rate at which the board will level itself on startup.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</description>
             <cDefine>CFG_DFLT_STARTUP_SPEED</cDefine>
-            <editorDecimalsDouble>1</editorDecimalsDouble>
+            <editorDecimalsDouble>0</editorDecimalsDouble>
             <editorScale>1</editorScale>
             <editAsPercentage>0</editAsPercentage>
-            <maxDouble>100</maxDouble>
+            <maxDouble>10000</maxDouble>
             <minDouble>0</minDouble>
             <showDisplay>0</showDisplay>
             <stepDouble>5</stepDouble>
-            <valDouble>30</valDouble>
-            <vTxDoubleScale>100</vTxDoubleScale>
+            <valDouble>2000</valDouble>
+            <vTxDoubleScale>1</vTxDoubleScale>
             <suffix> °/s</suffix>
             <vTx>7</vTx>
         </startup_speed>
