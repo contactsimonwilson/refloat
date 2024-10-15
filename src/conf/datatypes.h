@@ -174,7 +174,8 @@ typedef struct {
 typedef struct {
     float smooth_alpha;
     float alpha;
-    float in_alpha;
+    float in_alpha_away;
+    float in_alpha_back;
 } CfgSmoothTarget;
 
 typedef struct {

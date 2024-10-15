@@ -37,7 +37,11 @@ void smooth_target_update(SmoothTarget *st, float target) {
     float delta = st->cfg.alpha * (st->target - st->value);
 
     if (fabsf(delta) > fabsf(st->step) || sign(delta) != sign(st->step)) {
-        st->step += st->cfg.in_alpha * (delta - st->step);
+        if (fabsf(st->target) > fabsf(st->value)) {
+            st->step += st->cfg.in_alpha_away * (delta - st->step);
+        } else {
+            st->step += st->cfg.in_alpha_back * (delta - st->step);
+        }
     } else {
         st->step = delta;
     }
