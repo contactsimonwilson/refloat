@@ -26,25 +26,34 @@ void smooth_target_configure(SmoothTarget *st, CfgSmoothTarget *cfg) {
 }
 
 void smooth_target_reset(SmoothTarget *st, float value) {
-    st->target = 0;
+    if (st->cfg.type == SFT_EMA2) {
+        st->target = value;
+    } else {
+        st->target = 0;
+    }
     st->step = 0;
     st->value = value;
 }
 
 void smooth_target_update(SmoothTarget *st, float target) {
-    st->target += st->cfg.smooth_alpha * (target - st->target);
-
-    float delta = st->cfg.alpha * (st->target - st->value);
-
-    if (fabsf(delta) > fabsf(st->step) || sign(delta) != sign(st->step)) {
-        if (fabsf(st->target) > fabsf(st->value)) {
-            st->step += st->cfg.in_alpha_away * (delta - st->step);
-        } else {
-            st->step += st->cfg.in_alpha_back * (delta - st->step);
-        }
+    if (st->cfg.type == SFT_EMA2) {
+        st->target += st->cfg.alpha * (target - st->target);
+        st->value += st->cfg.alpha * (st->target - st->value);
     } else {
-        st->step = delta;
-    }
+        st->target += st->cfg.smooth_alpha * (target - st->target);
 
-    st->value += st->step;
+        float delta = st->cfg.alpha * (st->target - st->value);
+
+        if (fabsf(delta) > fabsf(st->step) || sign(delta) != sign(st->step)) {
+            if (fabsf(st->target) > fabsf(st->value)) {
+                st->step += st->cfg.in_alpha_away * (delta - st->step);
+            } else {
+                st->step += st->cfg.in_alpha_back * (delta - st->step);
+            }
+        } else {
+            st->step = delta;
+        }
+
+        st->value += st->step;
+    }
 }

@@ -171,7 +171,13 @@ typedef struct {
     float voltage_limit;
 } CfgHapticFeedback;
 
+typedef enum {
+    SFT_THREE_STAGE = 0,
+    SFT_EMA2
+} SetpointFilterType;
+
 typedef struct {
+    SetpointFilterType type;
     float smooth_alpha;
     float alpha;
     float in_alpha_away;
