@@ -1965,12 +1965,12 @@ p, li { white-space: pre-wrap; }
             <editorDecimalsDouble>1</editorDecimalsDouble>
             <editorScale>1</editorScale>
             <editAsPercentage>0</editAsPercentage>
-            <maxDouble>100</maxDouble>
+            <maxDouble>10000</maxDouble>
             <minDouble>0</minDouble>
             <showDisplay>0</showDisplay>
             <stepDouble>0.5</stepDouble>
             <valDouble>4</valDouble>
-            <vTxDoubleScale>100</vTxDoubleScale>
+            <vTxDoubleScale>1</vTxDoubleScale>
             <suffix> °/s</suffix>
             <vTx>7</vTx>
         </atr_on_speed>
@@ -1987,12 +1987,12 @@ p, li { white-space: pre-wrap; }
             <editorDecimalsDouble>1</editorDecimalsDouble>
             <editorScale>1</editorScale>
             <editAsPercentage>0</editAsPercentage>
-            <maxDouble>100</maxDouble>
+            <maxDouble>10000</maxDouble>
             <minDouble>0</minDouble>
             <showDisplay>0</showDisplay>
             <stepDouble>0.5</stepDouble>
             <valDouble>3</valDouble>
-            <vTxDoubleScale>100</vTxDoubleScale>
+            <vTxDoubleScale>1</vTxDoubleScale>
             <suffix> °/s</suffix>
             <vTx>7</vTx>
         </atr_off_speed>
