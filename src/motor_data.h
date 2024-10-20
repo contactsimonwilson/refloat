@@ -45,7 +45,14 @@ typedef struct {
     Biquad atr_current_biquad;
     float atr_filtered_current;
 
+    float battery_current;
+
     float duty_filter_alpha;
+
+    float current_min;
+    float current_max;
+    float battery_current_min;
+    float battery_current_max;
 } MotorData;
 
 void motor_data_reset(MotorData *m);
@@ -53,3 +60,5 @@ void motor_data_reset(MotorData *m);
 void motor_data_configure(MotorData *m, float frequency, float duty_filter_alpha);
 
 void motor_data_update(MotorData *m);
+
+float motor_data_get_current_saturation(const MotorData *m);

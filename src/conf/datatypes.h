@@ -162,6 +162,7 @@ typedef struct {
 
 typedef struct {
     float duty_solid_threshold;
+    float current_threshold;
     CfgHapticTone duty;
     CfgHapticTone error;
     CfgHapticTone vibrate;
