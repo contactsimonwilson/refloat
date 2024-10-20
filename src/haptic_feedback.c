@@ -17,6 +17,7 @@
 
 #include "haptic_feedback.h"
 
+#include "utils.h"
 #include "vesc_c_if.h"
 
 #include <math.h>
@@ -129,7 +130,10 @@ void haptic_feedback_update(
         hf->is_playing = false;
     } else if (!hf->is_playing && should_be_playing) {
         const CfgHapticTone *tone = get_haptic_tone(hf);
-        VESC_IF->foc_play_tone(0, tone->frequency, tone->voltage);
+        float speed = VESC_IF->mc_get_speed();
+        float voltage =
+            tone->voltage + hf->cfg->voltage_b * speed + hf->cfg->voltage_c * speed * speed;
+        VESC_IF->foc_play_tone(0, tone->frequency, min(voltage, hf->cfg->voltage_limit));
         VESC_IF->foc_play_tone(1, hf->cfg->vibrate.frequency, hf->cfg->vibrate.voltage);
         hf->is_playing = true;
     }
