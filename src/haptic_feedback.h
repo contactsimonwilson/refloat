@@ -42,5 +42,5 @@ void haptic_feedback_init(HapticFeedback *hf);
 void haptic_feedback_configure(HapticFeedback *hf, const CfgHapticFeedback *cfg);
 
 void haptic_feedback_update(
-    HapticFeedback *hf, const State *state, float duty_cycle, float current_time
+    HapticFeedback *hf, const State *state, float duty_cycle, float current, float current_time
 );

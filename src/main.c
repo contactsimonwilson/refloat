@@ -1170,8 +1170,9 @@ static void refloat_thd(void *arg) {
 
         float new_pid_value = 0;
 
+        float current_percent = fabsf(d->motor.atr_filtered_current) / d->mc_current_max;
         haptic_feedback_update(
-            &d->haptic_feedback, &d->state, d->motor.duty_cycle, d->current_time
+            &d->haptic_feedback, &d->state, d->motor.duty_cycle, current_percent, d->current_time
         );
 
         // Control Loop State Logic
