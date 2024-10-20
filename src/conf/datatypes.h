@@ -160,6 +160,9 @@ typedef struct {
     CfgHapticTone error;
     CfgHapticTone vibrate;
     uint16_t tone_length;
+    float voltage_b;
+    float voltage_c;
+    float voltage_limit;
 } CfgHapticFeedback;
 
 typedef struct {
