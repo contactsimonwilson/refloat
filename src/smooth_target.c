@@ -27,25 +27,27 @@ void smooth_target_configure(SmoothTarget *st, CfgSmoothTarget *cfg) {
 
 void smooth_target_reset(SmoothTarget *st, float value) {
     if (st->cfg.type == SFT_EMA2) {
-        st->target = value;
+        st->smooth_in = value;
     } else {
-        st->target = 0;
+        st->smooth_in = 0;
     }
     st->step = 0;
+    st->raw_out = value;
     st->value = value;
 }
 
 void smooth_target_update(SmoothTarget *st, float target) {
     if (st->cfg.type == SFT_EMA2) {
-        st->target += st->cfg.alpha * (target - st->target);
-        st->value += st->cfg.alpha * (st->target - st->value);
+        st->smooth_in += st->cfg.alpha * (target - st->smooth_in);
+        st->value += st->cfg.alpha * (st->smooth_in - st->value);
     } else {
-        st->target += st->cfg.smooth_alpha * (target - st->target);
+        st->smooth_in += st->cfg.smooth_alpha * (target - st->smooth_in);
 
-        float delta = st->cfg.alpha * (st->target - st->value);
+        float delta = st->cfg.alpha * (st->smooth_in - st->raw_out);
 
         if (fabsf(delta) > fabsf(st->step) || sign(delta) != sign(st->step)) {
-            if (fabsf(st->target) > fabsf(st->value)) {
+            // if (fabsf(st->target) > fabsf(st->raw_out)) {
+            if (sign(st->raw_out) == sign(delta)) {
                 st->step += st->cfg.in_alpha_away * (delta - st->step);
             } else {
                 st->step += st->cfg.in_alpha_back * (delta - st->step);
@@ -54,6 +56,8 @@ void smooth_target_update(SmoothTarget *st, float target) {
             st->step = delta;
         }
 
-        st->value += st->step;
+        st->raw_out += st->step;
+
+        st->value += st->cfg.smooth_out_alpha * (st->raw_out - st->value);
     }
 }

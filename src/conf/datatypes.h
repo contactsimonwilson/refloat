@@ -182,6 +182,7 @@ typedef struct {
     float alpha;
     float in_alpha_away;
     float in_alpha_back;
+    float smooth_out_alpha;
 } CfgSmoothTarget;
 
 typedef struct {

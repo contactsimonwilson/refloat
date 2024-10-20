@@ -22,8 +22,9 @@
 typedef struct {
     CfgSmoothTarget cfg;
 
-    float target;
+    float smooth_in;
     float step;
+    float raw_out;
     float value;
 } SmoothTarget;
 
