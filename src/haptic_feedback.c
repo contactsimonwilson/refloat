@@ -97,7 +97,7 @@ static inline float scale_strength(float strength, const CfgHapticFeedback *cfg,
 }
 
 void haptic_feedback_update(
-    HapticFeedback *hf, const State *state, const MotorData *md, const Time *time
+    HapticFeedback *hf, MotorControl *mc, const State *state, const MotorData *md, const Time *time
 ) {
     if (!VESC_IF->foc_play_tone) {
         return;
@@ -135,7 +135,7 @@ void haptic_feedback_update(
 
     if (hf->is_playing && !should_be_playing) {
         VESC_IF->foc_play_tone(0, 1, 0.0f);
-        VESC_IF->foc_play_tone(1, 1, 0.0f);
+        motor_control_stop_tone(mc);
         hf->is_playing = false;
     } else if (!hf->is_playing && should_be_playing) {
         float speed = VESC_IF->mc_get_speed();
@@ -147,8 +147,8 @@ void haptic_feedback_update(
         }
 
         if (hf->cfg->vibrate.strength > 0.0f) {
-            VESC_IF->foc_play_tone(
-                1,
+            motor_control_play_tone(
+                mc,
                 hf->cfg->vibrate.frequency,
                 scale_strength(hf->cfg->vibrate.strength, hf->cfg, speed)
             );
