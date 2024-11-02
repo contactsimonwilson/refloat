@@ -92,7 +92,11 @@ static inline float scale_voltage(float voltage, float speed, const CfgHapticFee
 }
 
 void haptic_feedback_update(
-    HapticFeedback *hf, const State *state, const MotorData *md, float current_time
+    HapticFeedback *hf,
+    const State *state,
+    const MotorData *md,
+    MotorControl *mc,
+    float current_time
 ) {
     if (!VESC_IF->foc_play_tone) {
         return;
@@ -132,7 +136,7 @@ void haptic_feedback_update(
 
     if (hf->is_playing && !should_be_playing) {
         VESC_IF->foc_play_tone(0, 1, 0.0f);
-        VESC_IF->foc_play_tone(1, 1, 0.0f);
+        motor_control_stop_tone(mc);
         hf->is_playing = false;
     } else if (!hf->is_playing && should_be_playing) {
         const CfgHapticTone *tone = get_haptic_tone(hf);
@@ -145,8 +149,8 @@ void haptic_feedback_update(
         }
 
         if (hf->cfg->vibrate.voltage > 0.0f) {
-            VESC_IF->foc_play_tone(
-                1,
+            motor_control_play_tone(
+                mc,
                 hf->cfg->vibrate.frequency,
                 scale_voltage(hf->cfg->vibrate.voltage, speed, hf->cfg)
             );
