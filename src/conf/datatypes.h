@@ -157,7 +157,7 @@ typedef struct {
 
 typedef struct {
     uint16_t frequency;
-    float voltage;
+    float strength;
 } CfgHapticTone;
 
 typedef struct {

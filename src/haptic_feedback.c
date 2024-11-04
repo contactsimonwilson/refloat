@@ -142,17 +142,17 @@ void haptic_feedback_update(
         const CfgHapticTone *tone = get_haptic_tone(hf);
         float speed = VESC_IF->mc_get_speed();
 
-        if (tone->voltage > 0.0f) {
+        if (tone->strength > 0.0f) {
             VESC_IF->foc_play_tone(
-                0, tone->frequency, scale_voltage(tone->voltage, speed, hf->cfg)
+                0, tone->frequency, scale_voltage(tone->strength, speed, hf->cfg)
             );
         }
 
-        if (hf->cfg->vibrate.voltage > 0.0f) {
+        if (hf->cfg->vibrate.strength > 0.0f) {
             motor_control_play_tone(
                 mc,
                 hf->cfg->vibrate.frequency,
-                scale_voltage(hf->cfg->vibrate.voltage, speed, hf->cfg)
+                scale_voltage(hf->cfg->vibrate.strength, speed, hf->cfg)
             );
         }
 
