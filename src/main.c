@@ -26,6 +26,7 @@
 #include "brake_tilt.h"
 #include "charging.h"
 #include "data.h"
+#include "data_recorder.h"
 #include "footpad_sensor.h"
 #include "haptic_feedback.h"
 #include "imu.h"
@@ -255,6 +256,7 @@ static void engage(Data *d) {
 
     state_engage(&d->state);
     timer_refresh(&d->time, &d->time.engage_timer);
+    data_recorder_trigger(&d->data_record, true);
 }
 
 /**
@@ -779,6 +781,7 @@ static void refloat_thd(void *arg) {
                     timer_refresh(&d->time, &d->fault_angle_pitch_timer);
                 }
                 motor_control_play_click(&d->motor_control);
+                data_recorder_trigger(&d->data_record, false);
                 break;
             }
 
@@ -966,6 +969,9 @@ static void refloat_thd(void *arg) {
         }
 
         motor_control_apply(&d->motor_control, d->motor.abs_erpm_smooth, d->state.state, &d->time);
+
+        data_recorder_sample(&d->data_record, d);
+
         VESC_IF->sleep_us(d->loop_time_us);
     }
 }
@@ -1072,6 +1078,7 @@ static void data_init(Data *d) {
     charging_init(&d->charging);
     remote_init(&d->remote);
     leds_init(&d->leds);
+    data_recorder_init(&d->data_record);
 
     konami_init(&d->flywheel_konami, flywheel_konami_sequence, sizeof(flywheel_konami_sequence));
     konami_init(
@@ -1134,6 +1141,7 @@ enum {
     COMMAND_TUNE_TILT = 14,
     COMMAND_FLYWHEEL = 22,
     COMMAND_REALTIME_DATA = 31,
+    COMMAND_DATA_RECORD_REQUEST = 41,
 
     // commands above 200 are unstable and can change protocol at any time
     COMMAND_LIGHTS_CONTROL = 202,
@@ -1766,7 +1774,7 @@ void flywheel_stop(Data *d) {
 }
 
 static void cmd_realtime_data(Data *d) {
-    static const int bufsize = 75;
+    static const int bufsize = 79;
     uint8_t buffer[bufsize];
     int32_t ind = 0;
 
@@ -1785,6 +1793,12 @@ static void cmd_realtime_data(Data *d) {
     }
 
     buffer[ind++] = mask;
+
+    const DataRecord *rd = &d->data_record;
+    uint8_t extra_flags = rd->autostop << 2 | rd->autostart << 1 | rd->recording;
+    buffer[ind++] = extra_flags;
+
+    buffer_append_uint32(buffer, d->time.now, &ind);
 
     buffer[ind++] = d->state.mode << 4 | d->state.state;
 
@@ -1845,8 +1859,7 @@ static void lights_control_response(const CfgLeds *leds) {
 }
 
 static void cmd_info(const Data *d, unsigned char *buf, int len) {
-    static const int bufsize =
-        7 + 16 + 9 + 2 + ITEMS_IDS_SIZE(RT_DATA_ITEMS) + ITEMS_IDS_SIZE(RT_DATA_RUNTIME_ITEMS);
+    static const int bufsize = 7 + 16 + 9 + 2 + ITEMS_IDS_SIZE(RT_DATA_ALL_ITEMS);
     uint8_t version = 1;
     int32_t i = 0;
 
@@ -1901,7 +1914,11 @@ static void cmd_info(const Data *d, unsigned char *buf, int len) {
         }
 
         buffer_append_uint32(send_buffer, SYSTEM_TICK_RATE_HZ, &ind);
-        buffer_append_uint32(send_buffer, 0x0, &ind);  // capabilities
+        uint32_t capabilities = 0;
+        if (data_recorder_has_capability(&d->data_record)) {
+            capabilities |= 1 << 31;
+        }
+        buffer_append_uint32(send_buffer, capabilities, &ind);
 
         // Send the full type here. This is redundant with cmd_light_info. It
         // likely shouldn't be here, as the type can be reconfigured and the
@@ -2069,6 +2086,10 @@ static void on_command_received(unsigned char *buffer, unsigned int len) {
     case COMMAND_LIGHTS_CONTROL: {
         lights_control_request(&d->float_conf.leds, &buffer[2], len - 2, &d->lcm);
         lights_control_response(&d->float_conf.leds);
+        return;
+    }
+    case COMMAND_DATA_RECORD_REQUEST: {
+        data_recorder_request(&d->data_record, &buffer[2], len - 2);
         return;
     }
     default: {
