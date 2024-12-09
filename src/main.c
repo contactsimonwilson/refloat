@@ -782,10 +782,11 @@ static void calculate_setpoint_target(data *d) {
             d->beep_reason = BEEP_HV;
         }
         beep_alert(d, 3, false);
-        if (((d->current_time - d->tb_highvoltage_timer) > .5) ||
+        if (((d->current_time - d->tb_highvoltage_timer) > 5) ||
             (input_voltage > d->float_conf.tiltback_hv + 1) ||
             bms_is_fault_set(d->bms_fault, BMSF_CELL_OVER_VOLTAGE)) {
-            // 500ms have passed or voltage is another volt higher, time for some tiltback
+            // It is assumed that haptic feedback is enabled!
+            // 5s have passed or voltage is another volt higher, time for some tiltback
             if (d->motor.erpm > 0) {
                 d->setpoint_target = d->float_conf.tiltback_hv_angle;
             } else {
