@@ -2422,6 +2422,18 @@ static void lights_control_request(CfgLeds *leds, uint8_t *buffer, size_t len, L
             leds->headlights_on = value & 0x2;
         }
 
+        if (len > 4) {
+            float bri = ((float)buffer[2]) * 0.01;
+            leds->headlights.brightness = bri;
+            leds->taillights.brightness = bri;
+            bri = ((float)buffer[3]) * 0.01;
+            leds->front.brightness = bri;
+            leds->rear.brightness = bri;
+            bri = ((float)buffer[4]) * 0.01;
+            leds->status.brightness_headlights_on = bri;
+            leds->status.brightness_headlights_off = bri;
+        }
+
         lcm_configure(lcm, leds);
     }
 }
