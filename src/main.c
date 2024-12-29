@@ -384,6 +384,9 @@ static void configure(data *d) {
 
     reconfigure(d);
 
+    d->float_conf.target_filter.tt_type = 1;
+    d->float_conf.target_filter.it_type = 0;
+
     if (d->state.state == STATE_DISABLED) {
         beep_alert(d, 3, false);
     } else {
