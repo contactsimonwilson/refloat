@@ -151,7 +151,6 @@ typedef struct {
     float pid_value;
 
     float setpoint, setpoint_target, setpoint_target_interpolated;
-    float applied_booster_current;
     float noseangling_interpolated, inputtilt_interpolated;
     float turntilt_target, turntilt_interpolated;
     float current_time;
@@ -408,7 +407,6 @@ static void reset_runtime_vars(data *d) {
     d->setpoint = d->balance_pitch;
     d->setpoint_target_interpolated = d->balance_pitch;
     d->setpoint_target = 0;
-    d->applied_booster_current = 0;
     d->noseangling_interpolated = 0;
     d->inputtilt_interpolated = 0;
     d->turntilt_target = 0;
@@ -1332,9 +1330,6 @@ static void refloat_thd(void *arg) {
 
             // Do PID maths
             d->proportional = d->setpoint - d->balance_pitch;
-            bool tail_down = sign(d->proportional) != d->motor.erpm_sign;
-
-            // Resume real PID maths
             d->integral = d->integral + d->proportional * d->float_conf.ki;
 
             // Apply I term Filter
@@ -1358,54 +1353,9 @@ static void refloat_thd(void *arg) {
             d->rate_p = -d->gyro[1] * d->float_conf.kp2;
             d->rate_p *= d->rate_p > 0 ? d->kp2_accel_scale : d->kp2_brake_scale;
 
-            // Apply Booster (Now based on True Pitch)
-            // Braketilt excluded to allow for soft brakes that strengthen when near tail-drag
-            float true_proportional = d->setpoint - d->atr.braketilt_offset - d->pitch;
-            float abs_proportional = fabsf(true_proportional);
-
-            float booster_current, booster_angle, booster_ramp;
-            if (tail_down) {
-                booster_current = d->float_conf.brkbooster_current;
-                booster_angle = d->float_conf.brkbooster_angle;
-                booster_ramp = d->float_conf.brkbooster_ramp;
-            } else {
-                booster_current = d->float_conf.booster_current;
-                booster_angle = d->float_conf.booster_angle;
-                booster_ramp = d->float_conf.booster_ramp;
-            }
-
-            // Make booster a bit stronger at higher speed (up to 2x stronger when braking)
-            const int boost_min_erpm = 3000;
-            if (d->motor.abs_erpm > boost_min_erpm) {
-                float speedstiffness = fminf(1, (d->motor.abs_erpm - boost_min_erpm) / 10000);
-                if (tail_down) {
-                    // use higher current at speed when braking
-                    booster_current += booster_current * speedstiffness;
-                } else {
-                    // when accelerating, we reduce the booster start angle as we get faster
-                    // strength remains unchanged
-                    float angledivider = 1 + speedstiffness;
-                    booster_angle /= angledivider;
-                }
-            }
-
-            if (abs_proportional > booster_angle) {
-                if (abs_proportional - booster_angle < booster_ramp) {
-                    booster_current *= sign(true_proportional) *
-                        ((abs_proportional - booster_angle) / booster_ramp);
-                } else {
-                    booster_current *= sign(true_proportional);
-                }
-            } else {
-                booster_current = 0;
-            }
-
-            // No harsh changes in booster current (effective delay <= 100ms)
-            d->applied_booster_current = 0.01 * booster_current + 0.99 * d->applied_booster_current;
-
             // Rate P and Booster are pitch-based (as opposed to balance pitch based)
             // They require to be filtered in, otherwise they'd cause a jerk
-            float pitch_based = d->rate_p + d->applied_booster_current;
+            float pitch_based = d->rate_p;
             if (d->softstart_pid_limit < d->motor.current_max) {
                 pitch_based = fminf(fabs(pitch_based), d->softstart_pid_limit) * sign(pitch_based);
                 d->softstart_pid_limit += d->softstart_ramp_step_size;
@@ -1735,7 +1685,7 @@ static void send_realtime_data(data *d) {
         buffer_append_float32_auto(buffer, d->charging.current, &ind);
         buffer_append_float32_auto(buffer, d->charging.voltage, &ind);
     } else {
-        buffer_append_float32_auto(buffer, d->applied_booster_current, &ind);
+        buffer_append_float32_auto(buffer, 0, &ind);
         buffer_append_float32_auto(buffer, d->motor.current, &ind);
     }
     buffer_append_float32_auto(buffer, d->throttle_val, &ind);
@@ -1786,7 +1736,7 @@ static void cmd_send_all_data(data *d, unsigned char mode) {
         buffer[ind++] = d->inputtilt_interpolated * 5 + 128;
 
         buffer_append_float16(buffer, d->pitch, 10, &ind);
-        buffer[ind++] = d->applied_booster_current + 128;
+        buffer[ind++] = /*d->applied_booster_current + */128;
 
         // Now send motor stuff:
         buffer_append_float16(buffer, VESC_IF->mc_get_input_voltage_filtered(), 10, &ind);
@@ -1868,8 +1818,6 @@ static void cmd_handtest(data *d, unsigned char *cfg) {
         d->float_conf.ki = 0;
         d->float_conf.kp_brake = 1;
         d->float_conf.kp2_brake = 1;
-        d->float_conf.brkbooster_angle = 100;
-        d->float_conf.booster_angle = 100;
         d->float_conf.torquetilt_strength = 0;
         d->float_conf.torquetilt_strength_regen = 0;
         d->float_conf.atr_strength_up = 0;
@@ -1888,33 +1836,6 @@ static void cmd_handtest(data *d, unsigned char *cfg) {
 static void cmd_experiment(data *d, unsigned char *cfg) {
     unused(d);
     unused(cfg);
-}
-
-static void cmd_booster(data *d, unsigned char *cfg) {
-    int h1, h2;
-    split(cfg[0], &h1, &h2);
-    d->float_conf.booster_angle = h1 + 5;
-    d->float_conf.booster_ramp = h2 + 2;
-
-    split(cfg[1], &h1, &h2);
-    if (h1 == 0) {
-        d->float_conf.booster_current = 0;
-    } else {
-        d->float_conf.booster_current = 8 + h1 * 2;
-    }
-
-    split(cfg[2], &h1, &h2);
-    d->float_conf.brkbooster_angle = h1 + 5;
-    d->float_conf.brkbooster_ramp = h2 + 2;
-
-    split(cfg[3], &h1, &h2);
-    if (h1 == 0) {
-        d->float_conf.brkbooster_current = 0;
-    } else {
-        d->float_conf.brkbooster_current = 8 + h1 * 2;
-    }
-
-    beep_alert(d, 1, false);
 }
 
 /**
@@ -2397,7 +2318,7 @@ static void send_realtime_data2(data *d) {
         buffer_append_float32_auto(buffer, d->motor.atr_filtered_current, &ind);
         buffer_append_float32_auto(buffer, d->atr.accel_diff, &ind);
         buffer_append_float32_auto(buffer, d->atr.speed_boost, &ind);
-        buffer_append_float32_auto(buffer, d->applied_booster_current, &ind);
+        buffer_append_float32_auto(buffer, 0/*d->applied_booster_current*/, &ind);
     }
 
     if (d->state.charging) {
@@ -2557,14 +2478,6 @@ static void on_command_received(unsigned char *buffer, unsigned int len) {
     }
     case COMMAND_HANDTEST: {
         cmd_handtest(d, &buffer[2]);
-        return;
-    }
-    case COMMAND_BOOSTER: {
-        if (len == 6) {
-            cmd_booster(d, &buffer[2]);
-        } else {
-            log_error("Command data length incorrect: %u", len);
-        }
         return;
     }
     case COMMAND_FLYWHEEL: {
