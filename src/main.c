@@ -776,12 +776,14 @@ static void calculate_setpoint_target(data *d) {
     } else if (d->motor.duty_cycle > 0.05 &&
                (input_voltage > d->float_conf.tiltback_hv ||
                 bms_is_fault_set(d->bms_fault, BMSF_CELL_OVER_VOLTAGE))) {
-        if (bms_is_fault_set(d->bms_fault, BMSF_CELL_OVER_VOLTAGE)) {
-            d->beep_reason = BEEP_CELL_HV;
-        } else {
-            d->beep_reason = BEEP_HV;
+        if (d->float_conf.haptic.error.strength == 0) {
+            if (bms_is_fault_set(d->bms_fault, BMSF_CELL_OVER_VOLTAGE)) {
+                d->beep_reason = BEEP_CELL_HV;
+            } else {
+                d->beep_reason = BEEP_HV;
+            }
+            beep_alert(d, 3, false);
         }
-        beep_alert(d, 3, false);
         if (((d->current_time - d->tb_highvoltage_timer) > 5) ||
             (input_voltage > d->float_conf.tiltback_hv + 1) ||
             bms_is_fault_set(d->bms_fault, BMSF_CELL_OVER_VOLTAGE)) {
@@ -793,7 +795,7 @@ static void calculate_setpoint_target(data *d) {
                 d->setpoint_target = -d->float_conf.tiltback_hv_angle;
             }
         } else {
-            // The rider has 500ms to react to the triple-beep, or maybe it was just a short spike
+            // The rider has 5s to react to the triple-beep/haptic
             d->setpoint_target = 0;
         }
         // setting the state regardless to ensure haptic buzz starts right away
@@ -849,11 +851,13 @@ static void calculate_setpoint_target(data *d) {
     } else if (d->motor.duty_cycle > 0.05 &&
                (input_voltage < d->float_conf.tiltback_lv ||
                 bms_is_fault_set(d->bms_fault, BMSF_CELL_UNDER_VOLTAGE))) {
-        beep_alert(d, 3, false);
-        if (bms_is_fault_set(d->bms_fault, BMSF_CELL_UNDER_VOLTAGE)) {
-            d->beep_reason = BEEP_CELL_LV;
-        } else {
-            d->beep_reason = BEEP_LV;
+        if (d->float_conf.haptic.error.strength == 0) {
+            if (bms_is_fault_set(d->bms_fault, BMSF_CELL_UNDER_VOLTAGE)) {
+                d->beep_reason = BEEP_CELL_LV;
+            } else {
+                d->beep_reason = BEEP_LV;
+            }
+            beep_alert(d, 3, false);
         }
         float abs_motor_current = fabsf(d->motor.current);
         float vdelta = d->float_conf.tiltback_lv - input_voltage;
