@@ -147,7 +147,7 @@ void haptic_feedback_update(
     } else if (!hf->is_playing && should_be_playing) {
         float speed = VESC_IF->mc_get_speed();
         const CfgHapticTone *tone = get_haptic_tone(hf);
-        if (tone->strength > 0.0f) {
+        if (tone->strength > 0.0f && tone->strength < 10.0f) {
             float strength = scale_strength(tone->strength, hf->cfg, speed);
             if (type_to_play == HAPTIC_FEEDBACK_ERROR_HI_VOLTAGE) {
                 float duration = current_time - hf->start_time;
@@ -155,6 +155,7 @@ void haptic_feedback_update(
                     // more than 3 seconds in HV? Start scaling up for next 2 seconds
                     // up to 50% louder
                     strength = strength * fminf(1.5, duration * 0.25 + 0.25);
+                    strength = fminf(strength, 12.0f);
                 }
             }
             VESC_IF->foc_play_tone(0, tone->frequency, strength);
