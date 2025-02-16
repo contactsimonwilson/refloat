@@ -37,6 +37,7 @@ typedef struct {
     HapticFeedbackType type_playing;
     float start_time;
     bool is_playing;
+    bool suppress;
 } HapticFeedback;
 
 void haptic_feedback_init(HapticFeedback *hf);
