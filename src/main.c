@@ -2195,7 +2195,7 @@ INIT_FUN(lib_info *info) {
         beeper_init();
     }
 
-    d->main_thread = VESC_IF->spawn(refloat_thd, 1024, "Refloat Main", d);
+    d->main_thread = VESC_IF->spawn(refloat_thd, 1536, "Refloat Main", d);
     if (!d->main_thread) {
         log_error("Failed to spawn Refloat Main thread.");
         return false;
