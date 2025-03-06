@@ -2216,8 +2216,8 @@ static void cmd_flywheel_toggle(data *d, unsigned char *cfg, int len) {
         d->float_conf.fault_delay_pitch = 20;  // 20ms delay should help filter out IMU noise
 
         // Aggressive P with some D (aka Rate-P) for Mahony kp=0.3
-        d->float_conf.mahony_kp = 0.4;
-        d->float_conf.mahony_kp_roll = 0.4;
+        d->float_conf.mahony_kp = 0.2;
+        d->float_conf.mahony_kp_roll = 0.2;
         d->float_conf.kp = 8.5;
         d->float_conf.kp2 = 0.7;
 
@@ -2230,18 +2230,17 @@ static void cmd_flywheel_toggle(data *d, unsigned char *cfg, int len) {
 
         d->float_conf.tiltback_duty_angle = 0.5;
         d->float_conf.tiltback_duty = 0.1;
-        d->float_conf.tiltback_duty_speed = 10;
-        d->float_conf.tiltback_return_speed = 8;
+        d->float_conf.tiltback_duty_speed = 1;
+        d->float_conf.tiltback_return_speed = 5;
 
         if (cfg[3] > 0) {
-            d->float_conf.tiltback_duty_angle = cfg[3] * 0.1f;
+            d->float_conf.tiltback_duty_angle = cfg[3] * 0.02f;
         }
         if (cfg[4] > 0) {
             d->float_conf.tiltback_duty = cfg[4] * 0.01f;
         }
         if ((len > 6) && (cfg[6] > 1) && (cfg[6] < 100)) {
-            d->float_conf.tiltback_duty_speed = cfg[6] * 0.5f;
-            d->float_conf.tiltback_return_speed = cfg[6] * 0.5f;
+            d->float_conf.tiltback_duty_speed = cfg[6] * 0.2f;
         }
         d->tiltback_duty_step_size = d->float_conf.tiltback_duty_speed / d->float_conf.hertz;
         d->tiltback_return_step_size = d->float_conf.tiltback_return_speed / d->float_conf.hertz;
