@@ -8,24 +8,6 @@
 ; Set firmware version:
 (apply ext-set-fw-version (sysinfo 'fw-ver))
 
-; This is executed once on boot:
-(foc-play-tone 0 1046.5 0.9)
-(sleep 0.08)
-(foc-play-tone 0 1318 0.9)
-(sleep 0.08)
-(foc-play-tone 0 1568 1.0)
-(sleep 0.08)
-(foc-play-tone 0 2093 1.1)
-(sleep 0.08)
-(foc-play-tone 0 1046.5 0.9)
-(foc-play-tone 1 1318 0.9)
-(sleep 0.08)
-(foc-play-tone 2 1568 1.0)
-(sleep 0.08)
-(foc-play-tone 2 2093 1.1)
-(sleep 0.2)
-(foc-play-stop)
-
 (def version_major (first (sysinfo 'fw-ver)))
 (def version_minor (second (sysinfo 'fw-ver)))
 (if (or (eq (first (trap (get-bms-val 'bms-v-cell-min))) 'exit-ok) (or (>= version_major 7) (and (>= version_major 6) (>= version_minor 5)))) {
