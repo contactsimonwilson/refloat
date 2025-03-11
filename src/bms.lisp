@@ -7,8 +7,6 @@
     (var mosfet-tmax-limit)
     (var config-update-time)
     (var fault 0u32)
-    (var v-cell-support (eq (first (trap (get-bms-val 'bms-v-cell-min))) 'exit-ok))
-    (var bms-data-version-support (and (eq (first (trap (get-bms-val 'bms-data-version))) 'exit-ok) (> (get-bms-val 'bms-data-version) 0)))
     (defun update-config () {
         (setq vmin-limit (conf-get 'bms-vmin-limit-start))
         (setq vmax-limit (conf-get 'bms-vmax-limit-start))
@@ -35,50 +33,46 @@
     })
     (update-config)
     (loopwhile t {
-        (if (> (secs-since config-update-time) 1.0) {
+        (if (> (secs-since config-update-time) 2.0) {
             (update-config)
         })
         (if (or (= vmin-limit 0.0) (= vmax-limit 0.0) (= tmax-limit 0.0)) {
             (set-fault 'BMSF_NONE)
         } {
-            (if (>= (get-bms-val 'bms-msg-age) 2.0) {
+            (if (>= (get-bms-val 'bms-msg-age) 5.0) {
                 (set-fault 'BMSF_CONNECTION)
             } {
                 (set-fault 'BMSF_NONE)
 
                 (var v-cell-min)
                 (var v-cell-max)
-                (if v-cell-support {
-                    (setq v-cell-min (get-bms-val 'bms-v-cell-min))
-                    (setq v-cell-max (get-bms-val 'bms-v-cell-max))
-                } {
-                    (var num-cells (get-bms-val 'bms-cell-num))
-                    (if (> num-cells 1) {
-                        (setq v-cell-max (get-bms-val 'bms-v-cell 0))
-                        (setq v-cell-min (get-bms-val 'bms-v-cell 0))
-                        (looprange i 1 num-cells {
-                            (var cell-volt (get-bms-val 'bms-v-cell i))
-                            (if (> cell-volt v-cell-max)
-                                (setq v-cell-max cell-volt))
-                            (if (< cell-volt v-cell-min)
-                                (setq v-cell-min cell-volt))
-                        })
-                    })
-                })
+                (var num-cells (get-bms-val 'bms-cell-num))
+                (if (> num-cells 1) {
+                  (setq v-cell-max (get-bms-val 'bms-v-cell 0))
+                  (setq v-cell-min (get-bms-val 'bms-v-cell 0))
+                  (looprange i 1 num-cells {
+                             (var cell-volt (get-bms-val 'bms-v-cell i))
+                             (if (> cell-volt v-cell-max)
+                                 (setq v-cell-max cell-volt))
+                             (if (< cell-volt v-cell-min)
+                                 (setq v-cell-min cell-volt))
+                             })
+                  })
 
                 (var t-cell-min)
                 (var t-cell-max)
-                (if bms-data-version-support {
-                    (setq t-cell-min (get-bms-val 'bms-temps-adc 1))
-                    (setq t-cell-max (get-bms-val 'bms-temps-adc 2))
-                    (var t-mosfet-temp (get-bms-val 'bms-temps-adc 3))
-                    (if (> t-mosfet-temp -280) {
-                        (if (>= t-mosfet-temp mosfet-tmax-limit) (set-fault 'BMSF_OVER_TEMP))
-                    })
-                } {
-                    (setq t-cell-min (get-bms-val 'bms-temp-cell-max))
-                    (setq t-cell-max t-cell-min)
-                })
+                (setq t-cell-min (get-bms-val 'bms-temps-adc 1))
+                (setq t-cell-max (get-bms-val 'bms-temps-adc 1))
+                (var cell-temp (get-bms-val 'bms-temps-adc 2))
+                (if (> cell-temp t-cell-max)
+                    (setq t-cell-max cell-temp))
+                (if (< cell-temp t-cell-min)
+                    (setq t-cell-min cell-temp))
+
+                (var t-mosfet-temp (get-bms-val 'bms-temps-adc 0))
+                (if (> t-mosfet-temp -280) {
+                  (if (>= t-mosfet-temp mosfet-tmax-limit) (set-fault 'BMSF_OVER_TEMP))
+                  })
 
                 (if (>= v-cell-max vmax-limit) (set-fault 'BMSF_CELL_OVER_VOLTAGE))
                 (if (<= v-cell-min vmin-limit) (set-fault 'BMSF_CELL_UNDER_VOLTAGE))
